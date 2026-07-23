@@ -91,8 +91,8 @@
     appearance: none;
     position: relative;
     box-sizing: border-box;
-    width: 43px;
-    height: 22px;
+    width: 30px;
+    height: 16px;
     border: 1px solid var(--line);
     border-radius: 999px;
     background: transparent;
@@ -104,7 +104,7 @@
   .theme-toggle::before {                   /* expanded tap target */
     content: "";
     position: absolute;
-    inset: -11px;
+    inset: -14px;
     border-radius: 999px;
   }
 
@@ -112,7 +112,7 @@
   .theme-toggle .dot-mark {
     position: absolute;
     top: 50%;
-    left: 10px;
+    left: 7px;
     width: 2px;
     height: 2px;
     border-radius: 50%;
@@ -122,24 +122,24 @@
     transition: transform 0.25s ease, background-color 0.35s ease;
   }
   :root[data-theme="light"] .theme-toggle .dot-mark {
-    transform: translate(21px, -50%);
+    transform: translate(14px, -50%);
   }
 
   /* reticle-style knob: hairline ring, thin glyph */
   .theme-toggle .knob {
     position: absolute;
     top: 50%;
-    left: 2px;
+    left: 1px;
     box-sizing: border-box;
-    width: 16px;
-    height: 16px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
     border: 1px solid var(--knob-line);
     color: var(--fg);
     display: flex;
     align-items: center;
     justify-content: center;
-    transform: translate(21px, -50%);       /* dark: knob at right */
+    transform: translate(14px, -50%);       /* dark: knob at right */
     transition: transform 0.25s ease, border-color 0.35s ease, color 0.35s ease;
   }
   :root[data-theme="light"] .theme-toggle .knob {
@@ -192,7 +192,7 @@
     <button class="theme-toggle" id="theme-toggle" role="switch" aria-checked="true" aria-label="Dark mode">
       <span class="dot-mark" aria-hidden="true"></span>
       <span class="knob" aria-hidden="true">
-        <svg class="icon-sun" width="10" height="10" viewBox="0 0 24 24" fill="none"
+        <svg class="icon-sun" width="8" height="8" viewBox="0 0 24 24" fill="none"
              stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
           <circle cx="12" cy="12" r="4" />
           <line x1="12"    y1="1.8"   x2="12"    y2="4.6" />
@@ -204,7 +204,7 @@
           <line x1="4.8"   y1="19.2"  x2="6.8"   y2="17.2" />
           <line x1="17.2"  y1="6.8"   x2="19.2"  y2="4.8" />
         </svg>
-        <svg class="icon-moon" width="10" height="10" viewBox="0 0 24 24" fill="none"
+        <svg class="icon-moon" width="8" height="8" viewBox="0 0 24 24" fill="none"
              stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
           <path d="M20.6 13.3A8.3 8.3 0 1 1 10.7 3.4a6.5 6.5 0 0 0 9.9 9.9z" />
         </svg>
