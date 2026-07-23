@@ -10,6 +10,23 @@
   html { scroll-behavior: smooth; }
   body { min-height: 100svh; }
 
+  /* this page scrolls: give the fixed header an opaque backdrop with a
+     soft fade below it so text slips underneath instead of colliding */
+  header {
+    background: var(--bg);
+    transition: background-color 0.35s ease;
+  }
+  header::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: 2.25rem;
+    background: linear-gradient(var(--bg), transparent);
+    pointer-events: none;
+  }
+
   main {
     padding: 9.5rem 1.75rem 8rem;
   }
