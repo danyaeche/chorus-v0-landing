@@ -23,9 +23,7 @@
     --line: rgba(245, 244, 240, 0.14);
     --sat-dim: rgba(255, 255, 255, 0.30);
     --sat-bright: rgba(255, 255, 255, 0.5);
-    --toggle-line: #3b3d42;
-    --knob-bg: #46484e;
-    --knob-icon: #e9e9eb;
+    --knob-line: rgba(245, 244, 240, 0.45);
   }
   :root[data-theme="light"] {
     --bg: #f5f4f0;
@@ -34,9 +32,7 @@
     --line: rgba(10, 10, 10, 0.14);
     --sat-dim: rgba(10, 10, 10, 0.40);
     --sat-bright: rgba(10, 10, 10, 0.65);
-    --toggle-line: #d9dade;
-    --knob-bg: #e3e4e8;
-    --knob-icon: #2e3033;
+    --knob-line: rgba(10, 10, 10, 0.5);
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -95,29 +91,56 @@
     appearance: none;
     position: relative;
     box-sizing: border-box;
-    width: 76px;
-    height: 44px;
-    border: 2px solid var(--toggle-line);
+    width: 64px;
+    height: 32px;
+    border: 1px solid var(--line);
     border-radius: 999px;
     background: transparent;
     cursor: pointer;
     padding: 0;
-    transition: border-color 0.35s ease;
+    transition: border-color 0.2s ease;
   }
+  .theme-toggle:hover { border-color: var(--fg); }
+  .theme-toggle::before {                   /* expanded tap target */
+    content: "";
+    position: absolute;
+    inset: -7px;
+    border-radius: 999px;
+  }
+
+  /* faint station dot marking the vacant side, like the globe's lattice */
+  .theme-toggle .dot-mark {
+    position: absolute;
+    top: 50%;
+    left: 14px;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--fg);
+    opacity: 0.25;
+    transform: translate(0, -50%);
+    transition: transform 0.25s ease, background-color 0.35s ease;
+  }
+  :root[data-theme="light"] .theme-toggle .dot-mark {
+    transform: translate(32px, -50%);
+  }
+
+  /* reticle-style knob: hairline ring, thin glyph */
   .theme-toggle .knob {
     position: absolute;
     top: 50%;
-    left: -2px;
-    width: 46px;
-    height: 46px;
+    left: 3px;
+    box-sizing: border-box;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    background: var(--knob-bg);
-    color: var(--knob-icon);
+    border: 1px solid var(--knob-line);
+    color: var(--fg);
     display: flex;
     align-items: center;
     justify-content: center;
-    transform: translate(34px, -50%);       /* dark: knob at right */
-    transition: transform 0.25s ease, background-color 0.35s ease, color 0.35s ease;
+    transform: translate(32px, -50%);       /* dark: knob at right */
+    transition: transform 0.25s ease, border-color 0.35s ease, color 0.35s ease;
   }
   :root[data-theme="light"] .theme-toggle .knob {
     transform: translate(0, -50%);          /* light: knob at left */
@@ -167,21 +190,23 @@
       <span class="wordmark">Chorus</span>
     </a>
     <button class="theme-toggle" id="theme-toggle" role="switch" aria-checked="true" aria-label="Dark mode">
+      <span class="dot-mark" aria-hidden="true"></span>
       <span class="knob" aria-hidden="true">
-        <svg class="icon-sun" width="22" height="22" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2.6">
-          <circle cx="12" cy="12" r="4.4" fill="currentColor" stroke="none" />
-          <line x1="12"   y1="1.6"  x2="12"    y2="5" />
-          <line x1="12"   y1="19"   x2="12"    y2="22.4" />
-          <line x1="1.6"  y1="12"   x2="5"     y2="12" />
-          <line x1="19"   y1="12"   x2="22.4"  y2="12" />
-          <line x1="4.65" y1="4.65" x2="7.05"  y2="7.05" />
-          <line x1="16.95" y1="16.95" x2="19.35" y2="19.35" />
-          <line x1="4.65" y1="19.35" x2="7.05" y2="16.95" />
-          <line x1="16.95" y1="7.05" x2="19.35" y2="4.65" />
+        <svg class="icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+          <circle cx="12" cy="12" r="4" />
+          <line x1="12"    y1="1.8"   x2="12"    y2="4.6" />
+          <line x1="12"    y1="19.4"  x2="12"    y2="22.2" />
+          <line x1="1.8"   y1="12"    x2="4.6"   y2="12" />
+          <line x1="19.4"  y1="12"    x2="22.2"  y2="12" />
+          <line x1="4.8"   y1="4.8"   x2="6.8"   y2="6.8" />
+          <line x1="17.2"  y1="17.2"  x2="19.2"  y2="19.2" />
+          <line x1="4.8"   y1="19.2"  x2="6.8"   y2="17.2" />
+          <line x1="17.2"  y1="6.8"   x2="19.2"  y2="4.8" />
         </svg>
-        <svg class="icon-moon" width="22" height="22" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M20.6 13.3A8.3 8.3 0 1 1 10.7 3.4a6.5 6.5 0 0 0 9.9 9.9z" />
+        <svg class="icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+          <path d="M20.6 13.3A8.3 8.3 0 1 1 10.7 3.4a6.5 6.5 0 0 0 9.9 9.9z" />
         </svg>
       </span>
     </button>
