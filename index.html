@@ -68,11 +68,22 @@
     color: var(--fg);
   }
 
-  .brand canvas {
+  /* one asset per theme, crossfaded in step with the body transition */
+  .brand-mark {
+    position: relative;
     width: 2.5rem;
     height: 2.5rem;
-    display: block;
   }
+  .brand-mark img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transition: opacity 0.35s ease;
+  }
+  .brand-mark .mark-light { opacity: 0; }
+  :root[data-theme="light"] .brand-mark .mark-dark { opacity: 0; }
+  :root[data-theme="light"] .brand-mark .mark-light { opacity: 1; }
 
   .wordmark {
     font-size: 1.625rem;
@@ -158,7 +169,10 @@
 <body>
   <header>
     <a class="brand" href="#" aria-label="Chorus home">
-      <canvas id="logo-mark" width="120" height="120" aria-hidden="true"></canvas>
+      <span class="brand-mark" aria-hidden="true">
+        <img class="mark-dark" src="chorus-mark.png" width="464" height="464" alt="" />
+        <img class="mark-light" src="chorus-mark-light.png" width="464" height="464" alt="" />
+      </span>
       <span class="wordmark">Chorus</span>
     </a>
     <button class="theme-toggle mono" id="theme-toggle" aria-label="Switch to light theme">
@@ -193,7 +207,6 @@
       themeLabel.textContent = "Light";
       toggle.setAttribute("aria-label", "Switch to light theme");
     }
-    drawLogo();
   }
 
   var stored = null;
@@ -205,10 +218,8 @@
     try { localStorage.setItem("chorus-theme", current); } catch (e) {}
     applyTheme(current);
     // the body color transitions over 350ms: poll the palette while it
-    // settles, and redraw the logo once it has
+    // settles so the globe follows it
     pollPaletteUntil = performance.now() + 600;
-    setTimeout(drawLogo, 200);
-    setTimeout(drawLogo, 450);
     if (reduceMotion) {
       setTimeout(function () {
         refreshPalette();
@@ -220,62 +231,6 @@
   var palette = { fg: "#f5f4f0" };
   function refreshPalette() {
     palette.fg = getComputedStyle(document.body).color;
-  }
-
-  /* ================= Chorus mark =================
-     Scanline-dithered swirl sphere: horizontal dash rows,
-     two-arm vortex field, ordered (Bayer) dithering. */
-
-  var BAYER = [
-    [ 0,  8,  2, 10],
-    [12,  4, 14,  6],
-    [ 3, 11,  1,  9],
-    [15,  7, 13,  5]
-  ];
-
-  var MARK = { swirl: -2.0, freq: 3.5, phase: 1.8, rot: -0.35, limb: 0.6 };
-
-  function renderMark(ctx, S, color, rows) {
-    ctx.clearRect(0, 0, S, S);
-    ctx.fillStyle = color;
-
-    rows = rows || 80;
-    var cx = S / 2, cy = S / 2, R = S * 0.46;
-    var dy = S / rows, dx = dy * 0.655;         // scanline + dash pitch
-    var dashW = dx * 0.82, dashH = Math.max(S / 300, dy * 0.4);
-    var rc = Math.cos(MARK.rot), rs = Math.sin(MARK.rot);
-
-    var ji = 0;
-    for (var y = dy / 2; y < S; y += dy, ji++) {
-      var ii = 0;
-      for (var x = dx / 2; x < S; x += dx, ii++) {
-        var px = (x - cx) / R, py = (y - cy) / R;
-        var tx = px * rc - py * rs;
-        py = px * rs + py * rc;
-        px = tx;
-
-        var r = Math.hypot(px, py);
-        if (r > 1) continue;
-
-        var phi = MARK.swirl * (1 - r);
-        var c = Math.cos(phi), s = Math.sin(phi);
-        var ry = px * s + py * c;
-
-        var v = Math.sin(ry * MARK.freq * Math.PI + MARK.phase) * 0.5 + 0.5;
-        var z = Math.sqrt(Math.max(0, 1 - r * r));
-        v *= 0.25 + 0.75 * Math.pow(z, MARK.limb);
-        if (r > 0.93) v = Math.max(v, 0.55 * z + 0.2);
-
-        var t = (BAYER[ji % 4][ii % 4] + 0.5) / 16;
-        if (v > t) ctx.fillRect(x - dashW / 2, y - dashH / 2, dashW, dashH);
-      }
-    }
-  }
-
-  var logoCanvas = document.getElementById("logo-mark");
-  function drawLogo() {
-    refreshPalette();
-    renderMark(logoCanvas.getContext("2d"), logoCanvas.width, palette.fg, 54);
   }
 
   /* ================= Landmask ================= */
@@ -633,7 +588,6 @@
   applyTheme(current);
   resize();
   refreshPalette();
-  drawLogo();
   startLoop();
 })();
 </script>
