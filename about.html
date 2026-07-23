@@ -10,23 +10,40 @@
   html, body { height: 100%; }
   body { overflow: hidden; }
 
-  /* the text scrolls inside a region that starts below the header band,
-     so it can never reach the lockup, BACK link, or theme switch */
+  /* the ABOUT eyebrow stays put; only the paragraphs scroll, inside a
+     fixed-height window that never nears the header or the clock */
   main {
     position: fixed;
     top: 5.5rem;
     bottom: 0;
     left: 0;
     right: 0;
-    overflow-y: auto;
-    scroll-behavior: smooth;
-    padding: 4rem 1.75rem 8rem;
+    padding: 4rem 1.75rem 6rem;
   }
 
   .about-col {
     max-width: 620px;
     margin-left: 38vw;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
+
+  .about-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    padding-right: 1.25rem;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+  .about-scroll::-webkit-scrollbar { width: 4px; }
+  .about-scroll::-webkit-scrollbar-thumb {
+    background: var(--line);
+    border-radius: 2px;
+  }
+  .about-scroll::-webkit-scrollbar-track { background: transparent; }
 
   .eyebrow {
     font: 11px/1 "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
@@ -93,9 +110,11 @@
     </div>
   </header>
 
-  <main tabindex="0" aria-label="About Chorus">
+  <main>
     <div class="about-col">
       <p class="eyebrow">About</p>
+
+      <div class="about-scroll" tabindex="0" aria-label="About Chorus">
 
       <p class="lead">Chorus is a software company building automated
       manufacturing operations for physical production.</p>
@@ -126,6 +145,8 @@
       cycle makes the system better at coordinating the next. The companies
       that define the next era of manufacturing will operate this way. We
       intend to build the control plane they run on.</p>
+
+      </div>
     </div>
   </main>
 
