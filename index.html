@@ -23,6 +23,9 @@
     --line: rgba(245, 244, 240, 0.14);
     --sat-dim: rgba(255, 255, 255, 0.30);
     --sat-bright: rgba(255, 255, 255, 0.5);
+    --toggle-line: #3b3d42;
+    --knob-bg: #46484e;
+    --knob-icon: #e9e9eb;
   }
   :root[data-theme="light"] {
     --bg: #f5f4f0;
@@ -31,6 +34,9 @@
     --line: rgba(10, 10, 10, 0.14);
     --sat-dim: rgba(10, 10, 10, 0.40);
     --sat-bright: rgba(10, 10, 10, 0.65);
+    --toggle-line: #d9dade;
+    --knob-bg: #e3e4e8;
+    --knob-icon: #2e3033;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -87,25 +93,41 @@
 
   .theme-toggle {
     appearance: none;
-    border: 1px solid var(--line);
-    background: transparent;
-    color: var(--fg);
-    border-radius: 999px;
-    width: 44px;
+    position: relative;
+    box-sizing: border-box;
+    width: 76px;
     height: 44px;
+    border: 2px solid var(--toggle-line);
+    border-radius: 999px;
+    background: transparent;
     cursor: pointer;
-    display: inline-flex;
+    padding: 0;
+    transition: border-color 0.35s ease;
+  }
+  .theme-toggle .knob {
+    position: absolute;
+    top: 50%;
+    left: -2px;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: var(--knob-bg);
+    color: var(--knob-icon);
+    display: flex;
     align-items: center;
     justify-content: center;
-    transition: border-color 0.2s ease, background-color 0.35s ease, color 0.35s ease;
+    transform: translate(34px, -50%);       /* dark: knob at right */
+    transition: transform 0.25s ease, background-color 0.35s ease, color 0.35s ease;
   }
-  .theme-toggle:hover { border-color: var(--fg); }
+  :root[data-theme="light"] .theme-toggle .knob {
+    transform: translate(0, -50%);          /* light: knob at left */
+  }
   .theme-toggle svg { display: block; }
 
-  /* dark mode shows the sun (tap to go light); light mode shows the moon */
-  .theme-toggle .icon-moon { display: none; }
-  :root[data-theme="light"] .theme-toggle .icon-sun { display: none; }
-  :root[data-theme="light"] .theme-toggle .icon-moon { display: block; }
+  /* knob shows the current mode: moon in dark, sun in light */
+  .theme-toggle .icon-sun { display: none; }
+  :root[data-theme="light"] .theme-toggle .icon-sun { display: block; }
+  :root[data-theme="light"] .theme-toggle .icon-moon { display: none; }
 
   /* ---------- Globe stage ---------- */
   #wrap {
@@ -144,23 +166,24 @@
       <img id="logo-mark" src="assets/logo-dark.png" width="165" height="165" alt="" aria-hidden="true" />
       <span class="wordmark">Chorus</span>
     </a>
-    <button class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">
-      <svg class="icon-sun" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24"
-           fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-        <circle cx="12" cy="12" r="4.25" />
-        <line x1="12" y1="1.5"  x2="12" y2="4" />
-        <line x1="12" y1="20"   x2="12" y2="22.5" />
-        <line x1="1.5" y1="12"  x2="4"  y2="12" />
-        <line x1="20"  y1="12"  x2="22.5" y2="12" />
-        <line x1="4.57" y1="4.57"   x2="6.34" y2="6.34" />
-        <line x1="17.66" y1="17.66" x2="19.43" y2="19.43" />
-        <line x1="4.57" y1="19.43"  x2="6.34" y2="17.66" />
-        <line x1="17.66" y1="6.34"  x2="19.43" y2="4.57" />
-      </svg>
-      <svg class="icon-moon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24"
-           fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-      </svg>
+    <button class="theme-toggle" id="theme-toggle" role="switch" aria-checked="true" aria-label="Dark mode">
+      <span class="knob" aria-hidden="true">
+        <svg class="icon-sun" width="22" height="22" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.6">
+          <circle cx="12" cy="12" r="4.4" fill="currentColor" stroke="none" />
+          <line x1="12"   y1="1.6"  x2="12"    y2="5" />
+          <line x1="12"   y1="19"   x2="12"    y2="22.4" />
+          <line x1="1.6"  y1="12"   x2="5"     y2="12" />
+          <line x1="19"   y1="12"   x2="22.4"  y2="12" />
+          <line x1="4.65" y1="4.65" x2="7.05"  y2="7.05" />
+          <line x1="16.95" y1="16.95" x2="19.35" y2="19.35" />
+          <line x1="4.65" y1="19.35" x2="7.05" y2="16.95" />
+          <line x1="16.95" y1="7.05" x2="19.35" y2="4.65" />
+        </svg>
+        <svg class="icon-moon" width="22" height="22" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M20.6 13.3A8.3 8.3 0 1 1 10.7 3.4a6.5 6.5 0 0 0 9.9 9.9z" />
+        </svg>
+      </span>
     </button>
   </header>
 
@@ -396,11 +419,11 @@ function setGlobeTheme(theme) {
 function applyTheme(theme) {
   if (theme === 'light') {
     root.setAttribute('data-theme', 'light');
-    toggle.setAttribute('aria-label', 'Switch to dark theme');
+    toggle.setAttribute('aria-checked', 'false');
     logoImg.src = 'assets/logo-light.png';
   } else {
     root.removeAttribute('data-theme');
-    toggle.setAttribute('aria-label', 'Switch to light theme');
+    toggle.setAttribute('aria-checked', 'true');
     logoImg.src = 'assets/logo-dark.png';
   }
   setGlobeTheme(theme);
