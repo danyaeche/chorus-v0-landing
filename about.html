@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>About — Chorus</title>
+<meta name="description" content="Chorus is a software company building automated manufacturing operations for physical production." />
+<link rel="stylesheet" href="assets/site.css" />
+<style>
+  html { scroll-behavior: smooth; }
+  body { min-height: 100svh; }
+
+  main {
+    padding: 9.5rem 1.75rem 8rem;
+  }
+
+  .about-col {
+    max-width: 620px;
+    margin-left: 38vw;
+  }
+
+  .eyebrow {
+    font: 11px/1 "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--sat-dim);
+    margin-bottom: 4.5rem;
+    transition: color 0.35s ease;
+  }
+
+  .lead {
+    font-size: 1.4375rem;
+    font-weight: 500;
+    line-height: 1.5;
+    letter-spacing: -0.01em;
+    color: var(--fg);
+    margin-bottom: 2.25rem;
+  }
+
+  .about-col p:not(.lead):not(.eyebrow) {
+    font-size: 1.125rem;
+    line-height: 1.75;
+    color: var(--fg);
+    opacity: 0.82;
+    margin-bottom: 1.75rem;
+  }
+  .about-col p:last-child { margin-bottom: 0; }
+
+  @media (max-width: 900px) {
+    main { padding-top: 8rem; }
+    .about-col { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <a class="brand" href="index.html" aria-label="Chorus home">
+      <img id="logo-mark" src="assets/logo-dark.png" width="165" height="165" alt="" aria-hidden="true" />
+      <span class="wordmark">Chorus</span>
+    </a>
+    <div class="header-right">
+    <button class="theme-toggle" id="theme-toggle" role="switch" aria-checked="true" aria-label="Dark mode">
+      <span class="dot-mark" aria-hidden="true"></span>
+      <span class="knob" aria-hidden="true">
+        <svg class="icon-sun" width="9" height="9" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+          <circle cx="12" cy="12" r="4" />
+          <line x1="12"    y1="1.8"   x2="12"    y2="4.6" />
+          <line x1="12"    y1="19.4"  x2="12"    y2="22.2" />
+          <line x1="1.8"   y1="12"    x2="4.6"   y2="12" />
+          <line x1="19.4"  y1="12"    x2="22.2"  y2="12" />
+          <line x1="4.8"   y1="4.8"   x2="6.8"   y2="6.8" />
+          <line x1="17.2"  y1="17.2"  x2="19.2"  y2="19.2" />
+          <line x1="4.8"   y1="19.2"  x2="6.8"   y2="17.2" />
+          <line x1="17.2"  y1="6.8"   x2="19.2"  y2="4.8" />
+        </svg>
+        <svg class="icon-moon" width="9" height="9" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+          <path d="M20.6 13.3A8.3 8.3 0 1 1 10.7 3.4a6.5 6.5 0 0 0 9.9 9.9z" />
+        </svg>
+      </span>
+    </button>
+    </div>
+  </header>
+
+  <main>
+    <div class="about-col">
+      <p class="eyebrow">About</p>
+
+      <p class="lead">Chorus is a software company building automated
+      manufacturing operations for physical production.</p>
+
+      <p>Manufacturing is one of the largest industries still coordinated
+      through fragmented systems and manual work. Every hardware company
+      depends on a complex network of suppliers, contract manufacturers,
+      warehousing and storage facilities, logistics carriers, compliance
+      partners, and internal operators to move products from design to
+      delivery. Yet much of that work still happens the way it did decades
+      ago: CAD files passed over email, BOMs in spreadsheets, supplier
+      feedback in PDFs and chat threads, and critical decisions scattered
+      across systems.</p>
+
+      <p>We run that work differently. Chorus turns CAD files, BOMs,
+      supplier quotes, engineering feedback, purchase orders, production
+      updates, quality reports, logistics data, emails, spreadsheets, and
+      conversations into a shared system of record for physical production.
+      Software coordinates the work across the entire lifecycle, from design
+      and sourcing through manufacturing, quality, fulfillment, and
+      delivery, keeping every team, supplier, revision, decision, and
+      handoff connected.</p>
+
+      <p>Every production cycle teaches the software something a great
+      manufacturing operator knows: which issues will delay a build, which
+      suppliers need follow-up, what needs approval, where production is
+      slipping, and what has to happen next to keep a product moving. Each
+      cycle makes the system better at coordinating the next. The companies
+      that define the next era of manufacturing will operate this way. We
+      intend to build the control plane they run on.</p>
+    </div>
+  </main>
+
+  <div class="clock">
+    <div class="l0">SAN FRANCISCO, CA</div>
+    <div id="clock-time">--:--:--</div>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  var root = document.documentElement;
+  var toggle = document.getElementById("theme-toggle");
+  var logoImg = document.getElementById("logo-mark");
+
+  function applyTheme(theme) {
+    if (theme === "light") {
+      root.setAttribute("data-theme", "light");
+      toggle.setAttribute("aria-checked", "false");
+      logoImg.src = "assets/logo-light.png";
+    } else {
+      root.removeAttribute("data-theme");
+      toggle.setAttribute("aria-checked", "true");
+      logoImg.src = "assets/logo-dark.png";
+    }
+  }
+
+  var stored = null;
+  try { stored = localStorage.getItem("chorus-theme"); } catch (e) {}
+  var current = stored === "light" ? "light" : "dark";
+
+  toggle.addEventListener("click", function () {
+    current = current === "light" ? "dark" : "light";
+    try { localStorage.setItem("chorus-theme", current); } catch (e) {}
+    applyTheme(current);
+  });
+
+  var clockEl = document.getElementById("clock-time");
+  var clockFmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+  function tickClock() {
+    clockEl.textContent = clockFmt.format(new Date());
+  }
+
+  applyTheme(current);
+  tickClock();
+  setInterval(tickClock, 1000);
+})();
+</script>
+</body>
+</html>
