@@ -21,12 +21,16 @@
     --fg: #f5f4f0;
     --secondary: #8a8a86;
     --line: rgba(245, 244, 240, 0.14);
+    --sat-dim: rgba(255, 255, 255, 0.30);
+    --sat-bright: rgba(255, 255, 255, 0.5);
   }
   :root[data-theme="light"] {
     --bg: #f5f4f0;
     --fg: #0a0a0a;
     --secondary: #6f6f6a;
     --line: rgba(10, 10, 10, 0.14);
+    --sat-dim: rgba(10, 10, 10, 0.40);
+    --sat-bright: rgba(10, 10, 10, 0.65);
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -105,54 +109,34 @@
   }
 
   /* ---------- Globe stage ---------- */
-  .stage {
+  #wrap {
     position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     z-index: 0;
   }
 
-  .stage-inner {
-    position: relative;
-    width: var(--stage-size, 660px);
-    height: var(--stage-size, 660px);
-    overflow: visible;
-  }
-
-  .stage-inner > .canvas-holder {
-    position: absolute;
-    inset: 0;
-  }
-
-  .stage-inner canvas { display: block; width: 100%; height: 100%; }
+  #stage { position: relative; }           /* square canvas + labels live here */
+  #stage canvas { display: block; }
 
   .sat {
     position: absolute;
-    top: 0;
     left: 0;
-    pointer-events: none;
-    user-select: none;
+    top: 0;
     display: flex;
+    gap: 8px;
     align-items: flex-start;
-    gap: 6px;
-    margin-left: -10px;
-    margin-top: -10px;
-    color: var(--fg);
+    font: 11px/1.55 "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
+    letter-spacing: 0.08em;
+    color: var(--sat-dim);
+    white-space: nowrap;
+    pointer-events: none;
     will-change: transform, opacity;
   }
-
-  .sat svg { flex-shrink: 0; margin-top: 1px; }
-
-  .sat .label {
-    font-family: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
-    font-size: 8px;
-    line-height: 13px;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-  }
-  .sat .label span { display: block; color: var(--secondary); }
-  .sat .label span:first-child { color: var(--fg); }
+  .sat svg { width: 22px; height: 22px; margin-top: 1px; opacity: 0.55; flex: none; }
+  .sat .l0 { color: var(--sat-bright); }
 </style>
 </head>
 <body>
@@ -167,417 +151,313 @@
     </button>
   </header>
 
-  <div class="stage" aria-hidden="true">
-    <div class="stage-inner" id="stage-inner">
-      <div class="canvas-holder"><canvas id="globe"></canvas></div>
-      <!-- satellite markers injected here -->
-    </div>
-  </div>
+  <div id="wrap" aria-hidden="true"><div id="stage"></div></div>
 
-<script>
-(function () {
-  "use strict";
+<script type="module">
+import * as THREE from './assets/vendor/three.module.min.js';
 
-  /* ================= Theme ================= */
-  var root = document.documentElement;
-  var toggle = document.getElementById("theme-toggle");
-  var themeLabel = document.getElementById("theme-label");
-  var logoImg = document.getElementById("logo-mark");
+const DEG = Math.PI / 180;
+const stage = document.getElementById('stage');
 
-  function applyTheme(theme) {
-    if (theme === "light") {
-      root.setAttribute("data-theme", "light");
-      themeLabel.textContent = "Dark";
-      toggle.setAttribute("aria-label", "Switch to dark theme");
-      logoImg.src = "assets/logo-light.png";
-    } else {
-      root.removeAttribute("data-theme");
-      themeLabel.textContent = "Light";
-      toggle.setAttribute("aria-label", "Switch to light theme");
-      logoImg.src = "assets/logo-dark.png";
-    }
-  }
+// ---------------------------------------------------------------- renderer
+let size = Math.min(innerWidth, innerHeight);
+const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(size, size);
+renderer.setClearColor(0x000000, 0);
+stage.appendChild(renderer.domElement);
 
-  var stored = null;
-  try { stored = localStorage.getItem("chorus-theme"); } catch (e) {}
-  var current = stored === "light" ? "light" : "dark";
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.z = 3.8;
 
-  toggle.addEventListener("click", function () {
-    current = current === "light" ? "dark" : "light";
-    try { localStorage.setItem("chorus-theme", current); } catch (e) {}
-    applyTheme(current);
-    // the body color transitions over 350ms: poll the palette while it settles
-    pollPaletteUntil = performance.now() + 600;
-    if (reduceMotion) {
-      setTimeout(function () {
-        refreshPalette();
-        drawGlobe(lastT);
-      }, 400);
-    }
+const RADIUS = 1.5;
+const globe = new THREE.Group();
+scene.add(globe);
+
+// scales shader point sizes relative to the original 420px@2x component
+const uScale = { value: (size * renderer.getPixelRatio()) / 840 };
+// dot color, switched with the page theme
+const uColor = { value: new THREE.Color(0xffffff) };
+const dotMaterials = [];
+
+// ------------------------------------------------- dot shader (depth fade)
+function dotMaterial(near, far, sizeNear, sizeFar) {
+  const mat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uScale, uColor },
+    vertexShader: `
+      uniform float uScale;
+      varying float vFocusDist;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vFocusDist = max(0.0, -mv.z - 2.3);
+        float t = smoothstep(0.0, 3.0, vFocusDist);
+        gl_PointSize = mix(${sizeNear.toFixed(2)}, ${sizeFar.toFixed(2)}, t) * uScale;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform vec3 uColor;
+      varying float vFocusDist;
+      void main() {
+        float oof = smoothstep(0.0, 3.0, vFocusDist);
+        float d = length(gl_PointCoord - 0.5);
+        float a = 1.0 - smoothstep(mix(0.0, 0.28, oof), 0.5, d);
+        float o = mix(${near.toFixed(2)}, ${far.toFixed(2)}, oof);
+        if (a * o < 0.01) discard;
+        gl_FragColor = vec4(uColor, a * o);
+      }`,
   });
+  dotMaterials.push(mat);
+  return mat;
+}
 
-  var palette = { fg: "#f5f4f0" };
-  function refreshPalette() {
-    palette.fg = getComputedStyle(document.body).color;
+// ---------------------- base sphere: 4500 pts, Fibonacci / golden angle
+const positions = [];
+const N = 4500;
+const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+for (let i = 0; i < N; i++) {
+  const y = 1 - (i / (N - 1)) * 2;
+  const rad = Math.sqrt(Math.max(0, 1 - y * y));
+  const theta = GOLDEN * i;
+  positions.push(RADIUS * rad * Math.cos(theta), RADIUS * y, RADIUS * rad * Math.sin(theta));
+}
+const baseGeometry = new THREE.BufferGeometry();
+baseGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+globe.add(new THREE.Points(baseGeometry, dotMaterial(0.88, 0.18, 2.8, 1.1)));
+
+// ------------------------------------- lat/long wireframe rings (very faint)
+const ringMat = new THREE.LineBasicMaterial({
+  color: 0xffffff, transparent: true, opacity: 0.07, blending: THREE.AdditiveBlending,
+});
+function circleGeo(r, segments = 128) {
+  const pts = [];
+  for (let i = 0; i <= segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    pts.push(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r));
   }
+  return new THREE.BufferGeometry().setFromPoints(pts);
+}
+for (const lat of [-60, -30, 0, 30, 60]) {
+  const ring = new THREE.Line(circleGeo(RADIUS * Math.cos(lat * DEG)), ringMat);
+  ring.position.y = RADIUS * Math.sin(lat * DEG);
+  globe.add(ring);
+}
+for (let k = 0; k < 12; k++) {
+  const ring = new THREE.Line(circleGeo(RADIUS), ringMat);
+  ring.rotation.z = Math.PI / 2;              // stand the circle up through the poles
+  ring.rotation.y = k * (Math.PI / 12);
+  globe.add(ring);
+}
 
-  /* ================= Landmask ================= */
-  var POLYGONS = [
-    /* North America */
-    [[-168,68],[-160,70],[-140,70],[-125,72],[-110,73],[-95,72],[-85,70],[-78,72],[-68,68],
-     [-65,60],[-64,47],[-70,43],[-75,38],[-76,34],[-80,31],[-80,25],[-84,30],[-90,29],
-     [-95,27],[-97,22],[-87,15],[-83,8],[-92,14],[-97,16],[-105,20],[-110,23],[-114,28],
-     [-117,33],[-124,40],[-124,48],[-130,55],[-135,58],[-145,60],[-152,58],[-165,54],
-     [-168,60],[-168,68]],
-    /* Greenland */
-    [[-45,60],[-40,65],[-32,68],[-22,70],[-18,75],[-22,80],[-35,83],[-50,82],[-58,76],
-     [-55,70],[-52,65],[-45,60]],
-    /* South America */
-    [[-78,7],[-75,10],[-71,12],[-63,10],[-60,8],[-52,5],[-50,0],[-44,-3],[-38,-6],
-     [-35,-9],[-38,-15],[-40,-22],[-48,-28],[-53,-34],[-58,-39],[-65,-41],[-65,-47],
-     [-68,-52],[-72,-54],[-74,-50],[-73,-44],[-73,-37],[-71,-30],[-70,-18],[-75,-14],
-     [-79,-6],[-81,-2],[-78,7]],
-    /* Africa */
-    [[-6,35],[0,37],[10,37],[20,32],[30,31],[34,28],[43,11],[51,12],[48,5],[42,-1],
-     [40,-10],[35,-20],[32,-29],[27,-34],[20,-35],[17,-29],[14,-22],[12,-15],[9,-7],
-     [9,0],[6,4],[-4,5],[-8,4],[-13,8],[-17,14],[-16,20],[-13,27],[-9,31],[-6,35]],
-    /* Eurasia */
-    [[-10,36],[-9,44],[-1,46],[-5,48],[0,50],[4,53],[8,54],[6,58],[5,62],[12,66],
-     [18,70],[28,71],[40,68],[50,69],[60,70],[75,73],[90,75],[105,77],[115,74],
-     [130,72],[140,72],[150,70],[160,70],[170,67],[178,65],[170,60],[160,60],
-     [150,59],[142,54],[135,44],[130,42],[126,38],[122,32],[120,25],[108,20],
-     [105,10],[102,6],[98,10],[94,16],[91,22],[87,21],[80,15],[78,8],[73,18],
-     [70,22],[66,25],[60,25],[56,26],[52,24],[58,22],[55,17],[45,13],[43,15],
-     [39,21],[35,28],[35,33],[30,36],[26,37],[18,40],[12,42],[6,43],[-5,37],
-     [-10,36]],
-    /* Australia */
-    [[114,-22],[122,-18],[130,-12],[136,-12],[142,-11],[146,-15],[149,-20],[153,-27],
-     [150,-33],[146,-38],[140,-38],[135,-35],[129,-32],[124,-33],[115,-34],[113,-26],
-     [114,-22]],
-    /* New Guinea */
-    [[131,-1],[141,-3],[147,-6],[150,-10],[143,-9],[135,-4],[131,-1]],
-    /* Borneo */
-    [[109,1],[114,5],[117,7],[118,1],[114,-3],[109,-1],[109,1]],
-    /* Sumatra / Java */
-    [[95,5],[100,2],[104,-3],[110,-7],[114,-8],[112,-9],[105,-7],[100,-1],[95,3],[95,5]],
-    /* Madagascar */
-    [[44,-12],[49,-13],[50,-16],[47,-25],[44,-25],[43,-20],[44,-12]],
-    /* Japan */
-    [[130,31],[132,34],[136,35],[140,36],[141,40],[142,44],[145,44],[141,42],[140,35],
-     [135,33],[131,30],[130,31]],
-    /* British Isles */
-    [[-5,50],[-2,52],[-1,54],[-4,58],[-7,57],[-5,53],[-6,51],[-5,50]],
-    /* New Zealand */
-    [[172,-34],[176,-38],[178,-38],[175,-41],[170,-44],[167,-46],[170,-42],[172,-34]],
-    /* Antarctica */
-    [[-180,-70],[180,-70],[180,-90],[-180,-90],[-180,-70]],
-    [[-64,-63],[-58,-64],[-62,-70],[-70,-70],[-64,-63]]
-  ];
-
-  function pointInPoly(lon, lat, poly) {
-    var inside = false;
-    for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      var xi = poly[i][0], yi = poly[i][1];
-      var xj = poly[j][0], yj = poly[j][1];
-      if ((yi > lat) !== (yj > lat) &&
-          lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
-        inside = !inside;
-      }
-    }
-    return inside;
-  }
-
-  function isLand(lon, lat) {
-    for (var i = 0; i < POLYGONS.length; i++) {
-      if (pointInPoly(lon, lat, POLYGONS[i])) return true;
-    }
-    return false;
-  }
-
-  /* ================= Globe geometry ================= */
-  var DEG = Math.PI / 180;
-
-  // land dots: near-equal-area sampling of the landmask
-  var landDots = [];
-  (function () {
-    var latStep = 3;
-    for (var lat = -84; lat <= 84; lat += latStep) {
-      var lonStep = latStep / Math.max(0.25, Math.cos(lat * DEG));
-      for (var lon = -180; lon < 180; lon += lonStep) {
-        if (!isLand(lon, lat)) continue;
-        var phi = lat * DEG, lam = lon * DEG;
-        landDots.push([
-          Math.cos(phi) * Math.sin(lam),   // x
-          Math.sin(phi),                   // y (spin axis)
-          Math.cos(phi) * Math.cos(lam)    // z
-        ]);
-      }
-    }
-  })();
-
-  // graticule polylines (earth frame)
-  var graticule = [];
-  (function () {
-    var lat, lon, line;
-    for (lon = -180; lon < 180; lon += 30) {
-      line = [];
-      for (lat = -90; lat <= 90; lat += 4) {
-        line.push([Math.cos(lat * DEG) * Math.sin(lon * DEG),
-                   Math.sin(lat * DEG),
-                   Math.cos(lat * DEG) * Math.cos(lon * DEG)]);
-      }
-      graticule.push(line);
-    }
-    for (lat = -60; lat <= 60; lat += 30) {
-      line = [];
-      for (lon = -180; lon <= 180; lon += 4) {
-        line.push([Math.cos(lat * DEG) * Math.sin(lon * DEG),
-                   Math.sin(lat * DEG),
-                   Math.cos(lat * DEG) * Math.cos(lon * DEG)]);
-      }
-      graticule.push(line);
-    }
-  })();
-
-  /* ================= Satellites ================= */
-  var SATS = [
-    { name: "SAT-001", l2: "INC 28.5°", l3: "7.91 KM/S",
-      inc: 28.5, raan: 30,  radius: 1.22, speed: 0.30, phase: 0.0 },
-    { name: "SAT-047", l2: "INC 51.6°", l3: "ALT 408KM",
-      inc: 51.6, raan: -50, radius: 1.35, speed: 0.26, phase: 2.1 },
-    { name: "POLAR-3", l2: "SSO 97.4°", l3: "T 98.7MIN",
-      inc: 97.4, raan: 100, radius: 1.50, speed: 0.21, phase: 4.2 }
-  ];
-
-  var stageInner = document.getElementById("stage-inner");
-
-  var RETICLE =
-    '<svg width="20" height="20" viewBox="0 0 32 32" style="flex-shrink:0;margin-top:1px" aria-hidden="true">' +
-    '<circle cx="16" cy="16" r="10" fill="none" stroke="currentColor" stroke-opacity="0.22" stroke-width="0.8"></circle>' +
-    '<line x1="3" y1="16" x2="11" y2="16" stroke="currentColor" stroke-width="1" opacity="0.82"></line>' +
-    '<line x1="21" y1="16" x2="29" y2="16" stroke="currentColor" stroke-width="1" opacity="0.82"></line>' +
-    '<line x1="16" y1="3" x2="16" y2="11" stroke="currentColor" stroke-width="1" opacity="0.82"></line>' +
-    '<line x1="16" y1="21" x2="16" y2="29" stroke="currentColor" stroke-width="1" opacity="0.82"></line>' +
-    '<circle cx="16" cy="16" r="1.5" fill="currentColor"></circle>' +
-    '</svg>';
-
-  SATS.forEach(function (sat) {
-    var el = document.createElement("div");
-    el.className = "sat";
-    el.innerHTML =
-      RETICLE +
-      '<div class="label"><span>' + sat.name + "</span><span>" + sat.l2 +
-      "</span><span>" + sat.l3 + "</span></div>";
-    stageInner.appendChild(el);
-    sat.el = el;
-    sat.opacity = 1;
-
-    // orbit plane basis (earth-tilt frame, y = polar axis)
-    var i = sat.inc * DEG, o = sat.raan * DEG;
-    sat.e1 = [Math.cos(o), 0, -Math.sin(o)];
-    sat.e2 = [Math.sin(o) * Math.cos(i), Math.sin(i), Math.cos(o) * Math.cos(i)];
+// ----------------------------- continents: sampled outlines on the sphere
+// minimal TopoJSON decoder (quantized, delta-encoded arcs)
+function topoRings(topo, objName) {
+  const [sx, sy] = topo.transform.scale, [tx, ty] = topo.transform.translate;
+  const arcs = topo.arcs.map(arc => {
+    let x = 0, y = 0;
+    return arc.map(([dx, dy]) => { x += dx; y += dy; return [x * sx + tx, y * sy + ty]; });
   });
-
-  /* ================= Renderer ================= */
-  var canvas = document.getElementById("globe");
-  var ctx = canvas.getContext("2d");
-  var dpr = Math.min(window.devicePixelRatio || 1, 2);
-  var size = 660;      // css px
-  var TILT_X = 0.38, ROLL_Z = -0.12;
-
-  function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
-    var vw = window.innerWidth, vh = window.innerHeight;
-    size = Math.min(660, Math.floor(Math.min(vw, vh) * 0.92));
-    root.style.setProperty("--stage-size", size + "px");
-    canvas.width = size * dpr;
-    canvas.height = size * dpr;
+  const expand = idxs => {
+    const pts = [];
+    for (const i of idxs) {
+      const a = i < 0 ? arcs[~i].slice().reverse() : arcs[i];
+      for (let k = pts.length ? 1 : 0; k < a.length; k++) pts.push(a[k]);
+    }
+    return pts;
+  };
+  const obj = topo.objects[objName];
+  const geoms = obj.geometries || [obj];
+  const rings = [];                       // ALL rings incl. holes -> even-odd test handles lakes
+  for (const g of geoms) {
+    if (g.type === 'Polygon') for (const ringArcs of g.arcs) rings.push(expand(ringArcs));
+    else if (g.type === 'MultiPolygon') for (const poly of g.arcs) for (const ringArcs of poly) rings.push(expand(ringArcs));
   }
+  return rings;
+}
+function lonLatToVec3(lon, lat, r, out) {
+  const phi = (90 - lat) * DEG, theta = (lon + 180) * DEG;
+  out[0] = -r * Math.sin(phi) * Math.cos(theta);
+  out[1] =  r * Math.cos(phi);
+  out[2] =  r * Math.sin(phi) * Math.sin(theta);
+}
 
-  var ctX = Math.cos(TILT_X), stX = Math.sin(TILT_X);
-  var cRZ = Math.cos(ROLL_Z), sRZ = Math.sin(ROLL_Z);
-
-  // tilt (x) then roll (z); returns world [x, y, z], z toward viewer
-  function orient(p) {
-    var x = p[0], y = p[1], z = p[2];
-    var y1 = y * ctX - z * stX;
-    var z1 = y * stX + z * ctX;
-    var x2 = x * cRZ - y1 * sRZ;
-    var y2 = x * sRZ + y1 * cRZ;
-    return [x2, y2, z1];
-  }
-
-  function drawGlobe(t) {
-    var S = size * dpr;
-    var cx = S / 2, cy = S / 2;
-    var R = S * 0.30;
-
-    ctx.clearRect(0, 0, S, S);
-
-    var spin = t * 0.09;
-    var cs = Math.cos(spin), ss = Math.sin(spin);
-
-    var i, j, p, x, y, z, w;
-
-    /* --- sphere outline --- */
-    ctx.globalAlpha = 0.12;
-    ctx.strokeStyle = palette.fg;
-    ctx.lineWidth = dpr;
-    ctx.beginPath();
-    ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.stroke();
-
-    /* --- graticule (batched into front/back paths) --- */
-    ctx.lineWidth = dpr * 0.7;
-    var gFront = new Path2D(), gBack = new Path2D();
-    for (i = 0; i < graticule.length; i++) {
-      var line = graticule[i];
-      var prev = null;
-      for (j = 0; j < line.length; j++) {
-        p = line[j];
-        x = p[0] * cs + p[2] * ss;
-        z = -p[0] * ss + p[2] * cs;
-        w = orient([x, p[1], z]);
-        var pt = [cx + w[0] * R, cy - w[1] * R, w[2]];
-        if (prev) {
-          var gp = (prev[2] > 0 && pt[2] > 0) ? gFront : gBack;
-          gp.moveTo(prev[0], prev[1]);
-          gp.lineTo(pt[0], pt[1]);
-        }
-        prev = pt;
+fetch('assets/land-110m.json')             // merged landmasses (no country borders)
+  .then(r => r.json())
+  .then(topo => {
+    const R = 1.54;                      // slightly above the base sphere
+    const rings = topoRings(topo, 'land');
+    // bounding box per ring so most point tests are a cheap reject
+    const boxes = rings.map(ring => {
+      let x0 = 180, x1 = -180, y0 = 90, y1 = -90;
+      for (const [x, y] of ring) {
+        if (x < x0) x0 = x; if (x > x1) x1 = x;
+        if (y < y0) y0 = y; if (y > y1) y1 = y;
       }
-    }
-    ctx.globalAlpha = 0.09;
-    ctx.stroke(gFront);
-    ctx.globalAlpha = 0.025;
-    ctx.stroke(gBack);
-
-    /* --- land dots --- */
-    ctx.fillStyle = palette.fg;
-    for (i = 0; i < landDots.length; i++) {
-      p = landDots[i];
-      x = p[0] * cs + p[2] * ss;
-      z = -p[0] * ss + p[2] * cs;
-      w = orient([x, p[1], z]);
-      var sx = cx + w[0] * R, sy = cy - w[1] * R;
-      var rad;
-      if (w[2] > 0) {
-        ctx.globalAlpha = 0.28 + 0.62 * w[2];
-        rad = dpr * (0.8 + 0.55 * w[2]);
-      } else {
-        ctx.globalAlpha = 0.05;
-        rad = dpr * 0.7;
-      }
-      ctx.fillRect(sx - rad / 2, sy - rad / 2, rad, rad);
-    }
-
-    /* --- orbits (batched) + satellites --- */
-    ctx.lineWidth = dpr * 0.8;
-    var rFront = new Path2D(), rBack = new Path2D();
-    for (i = 0; i < SATS.length; i++) {
-      var sat = SATS[i];
-      var Ro = R * sat.radius;
-
-      // ring path
-      var prevPt = null;
-      for (j = 0; j <= 120; j++) {
-        var a = (j / 120) * Math.PI * 2;
-        var ex = sat.e1, ey = sat.e2;
-        var ox = Math.cos(a) * ex[0] + Math.sin(a) * ey[0];
-        var oy = Math.cos(a) * ex[1] + Math.sin(a) * ey[1];
-        var oz = Math.cos(a) * ex[2] + Math.sin(a) * ey[2];
-        w = orient([ox, oy, oz]);
-        var px2 = cx + w[0] * Ro, py2 = cy - w[1] * Ro;
-        var behind = w[2] < 0 &&
-          Math.hypot(px2 - cx, py2 - cy) < R;
-        if (prevPt) {
-          var rp = (behind || prevPt[3]) ? rBack : rFront;
-          rp.moveTo(prevPt[0], prevPt[1]);
-          rp.lineTo(px2, py2);
-        }
-        prevPt = [px2, py2, w[2], behind];
-      }
-
-      // satellite position
-      var th = sat.phase + t * sat.speed;
-      var sxv = Math.cos(th) * sat.e1[0] + Math.sin(th) * sat.e2[0];
-      var syv = Math.cos(th) * sat.e1[1] + Math.sin(th) * sat.e2[1];
-      var szv = Math.cos(th) * sat.e1[2] + Math.sin(th) * sat.e2[2];
-      w = orient([sxv, syv, szv]);
-
-      var mx = size / 2 + w[0] * (size * 0.30) * sat.radius;
-      var my = size / 2 - w[1] * (size * 0.30) * sat.radius;
-
-      var occluded = w[2] < 0 &&
-        Math.hypot(mx - size / 2, my - size / 2) < size * 0.30 + 6;
-      var target = occluded ? 0.12 : 1;
-      if (reduceMotion) {
-        sat.opacity = target;      // static frame: no later frames to converge
-      } else {
-        sat.opacity += (target - sat.opacity) * 0.08;
-      }
-
-      sat.el.style.transform = "translate(" + mx.toFixed(4) + "px, " + my.toFixed(4) + "px)";
-      sat.el.style.opacity = sat.opacity.toFixed(4);
-    }
-    ctx.globalAlpha = 0.20;
-    ctx.stroke(rFront);
-    ctx.globalAlpha = 0.05;
-    ctx.stroke(rBack);
-
-    ctx.globalAlpha = 1;
-  }
-
-  /* ================= Loop ================= */
-  var rmQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-  var reduceMotion = rmQuery.matches;
-  var loopRunning = false;
-  var start = null;
-  var lastT = 0;
-  var pollPaletteUntil = 0;
-
-  function frame(now) {
-    if (start === null) {
-      start = now;
-      pollPaletteUntil = now + 600;
-    }
-    lastT = (now - start) / 1000;
-    if (now < pollPaletteUntil) refreshPalette();
-    drawGlobe(lastT);
-    if (!reduceMotion) {
-      requestAnimationFrame(frame);
-    } else {
-      loopRunning = false;
-    }
-  }
-
-  function startLoop() {
-    if (!loopRunning) {
-      loopRunning = true;
-      requestAnimationFrame(frame);
-    }
-  }
-
-  if (rmQuery.addEventListener) {
-    rmQuery.addEventListener("change", function (e) {
-      reduceMotion = e.matches;
-      if (!reduceMotion) startLoop();
+      return [x0, x1, y0, y1];
     });
-  }
-
-  window.addEventListener("resize", function () {
-    resize();
-    if (reduceMotion) {
-      refreshPalette();
-      drawGlobe(lastT);
+    function inLand(lon, lat) {
+      if (lat < -85.7) return true;      // dataset clips at ~-85.6; the cap is Antarctica
+      let inside = false;
+      for (let r = 0; r < rings.length; r++) {
+        const b = boxes[r];
+        if (lon < b[0] || lon > b[1] || lat < b[2] || lat > b[3]) continue;
+        const ring = rings[r];
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+          const [xi, yi] = ring[i], [xj, yj] = ring[j];
+          if ((yi > lat) !== (yj > lat) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi)
+            inside = !inside;            // even-odd: holes (lakes) come out non-land
+        }
+      }
+      return inside;
     }
-  });
+    // dense uniform Fibonacci lattice, keep only the points that land on land
+    const M = 36000, pts = [], v = [0, 0, 0];
+    for (let i = 0; i < M; i++) {
+      const y = 1 - (i / (M - 1)) * 2;
+      const lat = Math.asin(y) / DEG;
+      let lon = ((GOLDEN * i) % (Math.PI * 2)) / DEG;
+      if (lon > 180) lon -= 360;
+      if (inLand(lon, lat)) {
+        lonLatToVec3(lon, lat, R, v);
+        pts.push(v[0], v[1], v[2]);
+      }
+    }
+    const g2 = new THREE.BufferGeometry();
+    g2.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    globe.add(new THREE.Points(g2, dotMaterial(0.6, 0.15, 2.5, 1.0)));
+    if (reduceMotion) renderFrame(false);  // static frame drew before this layer arrived
+  })
+  .catch(err => console.warn('continent layer failed to load:', err));
 
+// ----------------------------------------------- orbiting satellite labels
+const satellites = [
+  { r: 2.06, inc: 28.5 * DEG, node:   0 * DEG, speed: 0.0022, phase: 0,   tag: ['SAT-001', 'INC 28.5°', '7.91 KM/S'] },
+  { r: 2.22, inc: 51.6 * DEG, node:  72 * DEG, speed: 0.0017, phase: 2.1, tag: ['SAT-047', 'INC 51.6°', 'ALT 408KM'] },
+  { r: 1.9,  inc: 97.4 * DEG, node: 144 * DEG, speed: 0.0032, phase: 4.5, tag: ['POLAR-3', 'SSO 97.4°', 'T 98.7MIN'] },
+];
+const RETICLE = `<svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1">
+  <circle cx="11" cy="11" r="5"/>
+  <line x1="11" y1="0" x2="11" y2="4"/><line x1="11" y1="18" x2="11" y2="22"/>
+  <line x1="0" y1="11" x2="4" y2="11"/><line x1="18" y1="11" x2="22" y2="11"/>
+  <circle cx="11" cy="11" r="1.2" fill="currentColor" stroke="none"/></svg>`;
+const labelEls = satellites.map(sat => {
+  const el = document.createElement('div');
+  el.className = 'sat';
+  el.innerHTML = RETICLE + '<div>' +
+    sat.tag.map((line, i) => `<div class="${i === 0 ? 'l0' : ''}">${line}</div>`).join('') + '</div>';
+  stage.appendChild(el);
+  return el;
+});
+const phases = satellites.map(s => s.phase);
+const euler = new THREE.Euler(), p3 = new THREE.Vector3(), projected = new THREE.Vector3();
+function orbitalToVec3(sat, phase, out) {
+  out.set(sat.r * Math.cos(phase), 0, -sat.r * Math.sin(phase));
+  euler.set(sat.inc, sat.node, 0);
+  out.applyEuler(euler);
+  return out;
+}
+
+// ------------------------------------------------------------------ theme
+const root = document.documentElement;
+const toggle = document.getElementById('theme-toggle');
+const themeLabel = document.getElementById('theme-label');
+const logoImg = document.getElementById('logo-mark');
+
+function setGlobeTheme(theme) {
+  const dark = theme !== 'light';
+  uColor.value.set(dark ? 0xffffff : 0x0a0a0a);
+  for (const mat of dotMaterials) {
+    mat.blending = dark ? THREE.AdditiveBlending : THREE.NormalBlending;
+    mat.needsUpdate = true;
+  }
+  ringMat.color.set(dark ? 0xffffff : 0x0a0a0a);
+  ringMat.opacity = dark ? 0.07 : 0.12;
+  ringMat.blending = dark ? THREE.AdditiveBlending : THREE.NormalBlending;
+  ringMat.needsUpdate = true;
+}
+
+function applyTheme(theme) {
+  if (theme === 'light') {
+    root.setAttribute('data-theme', 'light');
+    themeLabel.textContent = 'Dark';
+    toggle.setAttribute('aria-label', 'Switch to dark theme');
+    logoImg.src = 'assets/logo-light.png';
+  } else {
+    root.removeAttribute('data-theme');
+    themeLabel.textContent = 'Light';
+    toggle.setAttribute('aria-label', 'Switch to light theme');
+    logoImg.src = 'assets/logo-dark.png';
+  }
+  setGlobeTheme(theme);
+  if (reduceMotion) renderFrame(false);
+}
+
+let stored = null;
+try { stored = localStorage.getItem('chorus-theme'); } catch (e) {}
+let current = stored === 'light' ? 'light' : 'dark';
+
+toggle.addEventListener('click', () => {
+  current = current === 'light' ? 'dark' : 'light';
+  try { localStorage.setItem('chorus-theme', current); } catch (e) {}
   applyTheme(current);
-  resize();
-  refreshPalette();
-  startLoop();
-})();
+});
+
+// ------------------------------------------------------------------- loop
+const rmQuery = matchMedia('(prefers-reduced-motion: reduce)');
+let reduceMotion = rmQuery.matches;
+let loopRunning = false;
+
+function renderFrame(advance) {
+  if (advance) globe.rotation.y += 0.0018;          // slow spin
+  satellites.forEach((sat, n) => {
+    if (advance) phases[n] += sat.speed;
+    orbitalToVec3(sat, phases[n], p3);
+    projected.copy(p3).project(camera);
+    const sx = ( projected.x + 1) / 2 * size;
+    const sy = (-projected.y + 1) / 2 * size;
+    // fade the label as its satellite swings behind the globe
+    const opacity = 0.15 + 0.85 * THREE.MathUtils.smoothstep(p3.z, -sat.r * 0.5, sat.r * 0.35);
+    const el = labelEls[n];
+    el.style.transform = `translate(${sx + 10}px, ${sy - 10}px)`;
+    el.style.opacity = String(opacity);
+  });
+  renderer.render(scene, camera);
+}
+
+function tick() {
+  if (reduceMotion) { loopRunning = false; return; }
+  requestAnimationFrame(tick);
+  renderFrame(true);
+}
+
+function startLoop() {
+  if (!loopRunning) {
+    loopRunning = true;
+    requestAnimationFrame(tick);
+  }
+}
+
+if (rmQuery.addEventListener) {
+  rmQuery.addEventListener('change', e => {
+    reduceMotion = e.matches;
+    if (!reduceMotion) startLoop();
+  });
+}
+
+addEventListener('resize', () => {
+  size = Math.min(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(size, size);
+  uScale.value = (size * renderer.getPixelRatio()) / 840;
+  if (reduceMotion) renderFrame(false);
+});
+
+applyTheme(current);
+if (reduceMotion) renderFrame(false);
+else startLoop();
 </script>
 </body>
 </html>
