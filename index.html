@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Chorus</title>
+<meta name="description" content="Chorus — many voices, one signal." />
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --fg: #f5f4f0;
+    --muted: #8a8a86;
+    --accent: #f5f4f0;
+    --line: rgba(245, 244, 240, 0.14);
+    --btn-bg: #f5f4f0;
+    --btn-fg: #0a0a0a;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f4f0;
+    --fg: #0a0a0a;
+    --muted: #6f6f6a;
+    --accent: #0a0a0a;
+    --line: rgba(10, 10, 10, 0.14);
+    --btn-bg: #0a0a0a;
+    --btn-fg: #f5f4f0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.35s ease, color 0.35s ease;
+    overflow-x: hidden;
+  }
+
+  .mono {
+    font-family: "SF Mono", "Menlo", "Consolas", "Liberation Mono", monospace;
+    font-size: 0.6875rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    position: fixed;
+    inset: 0 0 auto 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.75rem;
+    z-index: 10;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+    color: var(--fg);
+  }
+
+  .brand canvas {
+    width: 2.25rem;
+    height: 2.25rem;
+    display: block;
+  }
+
+  .wordmark {
+    font-size: 1.5rem;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .theme-toggle {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--fg);
+    border-radius: 999px;
+    padding: 0.45rem 0.9rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: border-color 0.2s ease, background-color 0.35s ease, color 0.35s ease;
+  }
+  .theme-toggle:hover { border-color: var(--fg); }
+
+  .theme-toggle .dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--fg);
+    transition: background-color 0.35s ease;
+  }
+
+  /* ---------- Hero ---------- */
+  main {
+    min-height: 100svh;
+    display: grid;
+    place-items: center;
+    position: relative;
+    padding: 5.5rem 1.5rem 3.5rem;
+  }
+
+  .hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1.75rem;
+    max-width: 46rem;
+    width: 100%;
+  }
+
+  .globe-wrap {
+    position: relative;
+    width: min(20rem, 70vw);
+    aspect-ratio: 1;
+  }
+
+  .globe-wrap canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* corner brackets, echoing the brand sheet */
+  .frame {
+    position: absolute;
+    inset: -1.25rem;
+    pointer-events: none;
+  }
+  .frame span {
+    position: absolute;
+    width: 1rem;
+    height: 1rem;
+    border-color: var(--muted);
+    border-style: solid;
+    border-width: 0;
+    opacity: 0.7;
+  }
+  .frame span:nth-child(1) { top: 0; left: 0; border-top-width: 1px; border-left-width: 1px; }
+  .frame span:nth-child(2) { top: 0; right: 0; border-top-width: 1px; border-right-width: 1px; }
+  .frame span:nth-child(3) { bottom: 0; left: 0; border-bottom-width: 1px; border-left-width: 1px; }
+  .frame span:nth-child(4) { bottom: 0; right: 0; border-bottom-width: 1px; border-right-width: 1px; }
+
+  .kicker { color: var(--muted); }
+
+  h1 {
+    font-size: clamp(2.25rem, 5.5vw, 3.5rem);
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+  }
+
+  .sub {
+    color: var(--muted);
+    font-size: clamp(1rem, 2vw, 1.125rem);
+    line-height: 1.6;
+    max-width: 34rem;
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.875rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.8rem 1.6rem;
+    border-radius: 999px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: opacity 0.2s ease, border-color 0.2s ease,
+                background-color 0.35s ease, color 0.35s ease;
+  }
+  .btn.primary { background: var(--btn-bg); color: var(--btn-fg); }
+  .btn.primary:hover { opacity: 0.85; }
+  .btn.ghost { border-color: var(--line); color: var(--fg); background: transparent; }
+  .btn.ghost:hover { border-color: var(--fg); }
+
+  /* ---------- Footer ---------- */
+  footer {
+    position: fixed;
+    inset: auto 0 0 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 1.25rem 1.75rem;
+    color: var(--muted);
+    z-index: 10;
+  }
+
+  @media (max-width: 40rem) {
+    footer .hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <a class="brand" href="#" aria-label="Chorus home">
+      <canvas id="logo-globe" width="72" height="72" aria-hidden="true"></canvas>
+      <span class="wordmark">Chorus</span>
+    </a>
+    <div class="header-right">
+      <span class="mono kicker" id="lockup-label">01&nbsp;&nbsp;Primary Lockup</span>
+      <button class="theme-toggle mono" id="theme-toggle" aria-live="polite">
+        <span class="dot" aria-hidden="true"></span>
+        <span id="theme-label">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="globe-wrap">
+        <div class="frame" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+        <canvas id="hero-globe" aria-label="Animated Chorus globe"></canvas>
+      </div>
+      <p class="mono kicker">Many voices &mdash; one signal</p>
+      <h1>Where every voice<br />finds its frequency.</h1>
+      <p class="sub">
+        Chorus brings your team&rsquo;s conversations, decisions, and ideas into a single
+        resonant stream &mdash; so nothing gets lost in the noise.
+      </p>
+      <div class="actions">
+        <a class="btn primary" href="#">Get early access</a>
+        <a class="btn ghost" href="#">Watch the demo</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="mono">
+    <span>&copy; 2026 Chorus</span>
+    <span class="hide-sm">v0 &mdash; Landing</span>
+  </footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------- Theme ---------------- */
+  var root = document.documentElement;
+  var toggle = document.getElementById("theme-toggle");
+  var themeLabel = document.getElementById("theme-label");
+  var lockupLabel = document.getElementById("lockup-label");
+
+  function systemTheme() {
+    return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  }
+
+  function applyTheme(theme) {
+    if (theme === "light") {
+      root.setAttribute("data-theme", "light");
+      themeLabel.textContent = "Dark";
+      lockupLabel.innerHTML = "02&nbsp;&nbsp;Inverted Lockup";
+    } else {
+      root.removeAttribute("data-theme");
+      themeLabel.textContent = "Light";
+      lockupLabel.innerHTML = "01&nbsp;&nbsp;Primary Lockup";
+    }
+    refreshPalette();
+  }
+
+  var stored = null;
+  try { stored = localStorage.getItem("chorus-theme"); } catch (e) {}
+  var current = stored === "light" || stored === "dark" ? stored : systemTheme();
+
+  toggle.addEventListener("click", function () {
+    current = current === "light" ? "dark" : "light";
+    try { localStorage.setItem("chorus-theme", current); } catch (e) {}
+    applyTheme(current);
+  });
+
+  /* ---------------- ASCII globe renderer ----------------
+     Ray-casts a sphere per character cell; the surface is
+     textured with swirling latitude bands (the Chorus mark),
+     shaded with a dithered ASCII ramp. */
+
+  var RAMP = " .·:-=+*#%@";
+
+  var palette = { fg: "#f5f4f0", bg: "#0a0a0a" };
+  function refreshPalette() {
+    var styles = getComputedStyle(document.body);
+    palette.fg = styles.color;
+    palette.bg = styles.backgroundColor;
+  }
+
+  function makeGlobe(canvas, opts) {
+    var ctx = canvas.getContext("2d");
+    var cells = opts.cells;          // characters across the sphere's diameter
+    var speed = opts.speed;          // radians / second
+    var tilt = opts.tilt;            // axial tilt in radians
+    var dpr = Math.max(Math.min(window.devicePixelRatio || 1, 2), opts.minDpr || 1);
+    var size = 0, cell = 0, fontPx = 0;
+
+    function resize() {
+      var rect = canvas.getBoundingClientRect();
+      var px = Math.max(rect.width, 1);
+      size = Math.round(px * dpr);
+      canvas.width = size;
+      canvas.height = size;
+      cell = size / cells;
+      fontPx = cell * 1.15;
+      ctx.font = fontPx + "px 'SF Mono', Menlo, Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+    }
+
+    var cosT = Math.cos(tilt), sinT = Math.sin(tilt);
+
+    function draw(t) {
+      ctx.clearRect(0, 0, size, size);
+      ctx.fillStyle = palette.fg;
+      var rot = t * speed;
+      var half = cells / 2;
+
+      for (var j = 0; j < cells; j++) {
+        var y0 = (j + 0.5 - half) / half;        // -1 .. 1
+        for (var i = 0; i < cells; i++) {
+          var x0 = (i + 0.5 - half) / half;
+          var rr = x0 * x0 + y0 * y0;
+          if (rr > 1) continue;
+          var z0 = Math.sqrt(1 - rr);
+
+          // axial tilt (around z), then spin (around y)
+          var x1 = x0 * cosT - y0 * sinT;
+          var y1 = x0 * sinT + y0 * cosT;
+
+          var lon = Math.atan2(x1, z0) + rot;
+          var lat = Math.asin(y1);
+
+          // swirling bands: latitude stripes sheared by longitude,
+          // giving the "S"-curl of the Chorus mark
+          var swirl = Math.sin(lat * 5.2 + Math.cos(lon) * 1.6 + Math.sin(lon * 2) * 0.35);
+          var band = swirl * 0.5 + 0.5;
+
+          // limb shading so the sphere reads as a volume
+          var light = 0.35 + 0.65 * z0;
+
+          var v = band * light;
+          // gentle gamma to keep mids crisp
+          v = Math.pow(v, 1.25);
+          if (opts.gain) v = Math.min(1, v * opts.gain);
+
+          var idx = Math.min(RAMP.length - 1, Math.floor(v * RAMP.length));
+          var ch = RAMP[idx];
+          if (ch === " ") continue;
+
+          ctx.globalAlpha = 0.35 + 0.65 * v;
+          ctx.fillText(ch, (i + 0.5) * cell, (j + 0.5) * cell);
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    return { resize: resize, draw: draw };
+  }
+
+  var hero = makeGlobe(document.getElementById("hero-globe"), {
+    cells: 64, speed: 0.55, tilt: -0.35
+  });
+  var logo = makeGlobe(document.getElementById("logo-globe"), {
+    cells: 18, speed: 0.35, tilt: -0.35, minDpr: 3, gain: 1.6
+  });
+
+  function resizeAll() { hero.resize(); logo.resize(); }
+  window.addEventListener("resize", resizeAll);
+
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var start = null;
+
+  function frame(now) {
+    if (start === null) start = now;
+    var t = (now - start) / 1000;
+    // re-sample each frame so the globe tracks the theme's color transition
+    refreshPalette();
+    hero.draw(t);
+    logo.draw(t * 0.6);
+    if (!reduceMotion) requestAnimationFrame(frame);
+  }
+
+  applyTheme(current);
+  resizeAll();
+  refreshPalette();
+  requestAnimationFrame(frame);
+
+  // with reduced motion the loop stops after one frame, so redraw
+  // manually once the theme's color transition has settled
+  if (reduceMotion) {
+    toggle.addEventListener("click", function () {
+      setTimeout(function () {
+        refreshPalette();
+        hero.draw(0);
+        logo.draw(0);
+      }, 400);
+    });
+  }
+})();
+</script>
+</body>
+</html>
