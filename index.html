@@ -68,14 +68,22 @@
     color: var(--fg);
   }
 
-  .brand img {
+  /* one asset per theme, crossfaded in step with the body transition */
+  .brand-mark {
+    position: relative;
     width: 2.5rem;
     height: 2.5rem;
-    display: block;
-    transition: filter 0.35s ease;
   }
-  /* same asset in both themes: white marks invert to near-black (#0a0b0f ~ --fg) */
-  :root[data-theme="light"] .brand img { filter: invert(1); }
+  .brand-mark img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transition: opacity 0.35s ease;
+  }
+  .brand-mark .mark-light { opacity: 0; }
+  :root[data-theme="light"] .brand-mark .mark-dark { opacity: 0; }
+  :root[data-theme="light"] .brand-mark .mark-light { opacity: 1; }
 
   .wordmark {
     font-size: 1.625rem;
@@ -161,7 +169,10 @@
 <body>
   <header>
     <a class="brand" href="#" aria-label="Chorus home">
-      <img src="chorus-mark.png" width="464" height="464" alt="" aria-hidden="true" />
+      <span class="brand-mark" aria-hidden="true">
+        <img class="mark-dark" src="chorus-mark.png" width="464" height="464" alt="" />
+        <img class="mark-light" src="chorus-mark-light.png" width="464" height="464" alt="" />
+      </span>
       <span class="wordmark">Chorus</span>
     </a>
     <button class="theme-toggle mono" id="theme-toggle" aria-label="Switch to light theme">
