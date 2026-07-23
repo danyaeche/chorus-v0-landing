@@ -181,6 +181,21 @@
   }
   .sat svg { width: 22px; height: 22px; margin-top: 1px; opacity: 0.55; flex: none; }
   .sat .l0 { color: var(--sat-bright); }
+
+  /* ---------- Station clock ---------- */
+  .clock {
+    position: fixed;
+    left: 1.75rem;
+    bottom: 1.5rem;
+    font: 11px/1.55 "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
+    letter-spacing: 0.08em;
+    color: var(--sat-dim);
+    white-space: nowrap;
+    user-select: none;
+    z-index: 10;
+    transition: color 0.35s ease;
+  }
+  .clock .l0 { color: var(--sat-bright); transition: color 0.35s ease; }
 </style>
 </head>
 <body>
@@ -211,6 +226,11 @@
       </span>
     </button>
   </header>
+
+  <div class="clock">
+    <div class="l0">SAN FRANCISCO, CA</div>
+    <div id="clock-time">--:--:--</div>
+  </div>
 
   <div id="wrap" aria-hidden="true"><div id="stage"></div></div>
 
@@ -514,6 +534,19 @@ addEventListener('resize', () => {
   uScale.value = (size * renderer.getPixelRatio()) / 840;
   if (reduceMotion) renderFrame(false);
 });
+
+// ------------------------------------------------------------ station clock
+const clockEl = document.getElementById('clock-time');
+const clockFmt = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Los_Angeles',
+  hour: '2-digit', minute: '2-digit', second: '2-digit',
+  hour12: false, timeZoneName: 'short',
+});
+function tickClock() {
+  clockEl.textContent = clockFmt.format(new Date()).replace(',', '');
+}
+tickClock();
+setInterval(tickClock, 1000);
 
 applyTheme(current);
 if (reduceMotion) renderFrame(false);
