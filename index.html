@@ -233,38 +233,39 @@
     [15,  7, 13,  5]
   ];
 
-  var MARK = { swirl: -2.0, freq: 3.5, phase: 1.8, rot: -0.35, limb: 0.6 };
+  // two-arm spiral-blade mark: mostly-solid disc carved by two narrow
+  // dark channels u = 2θ + a·r^p + b, channels where cos(u) < cut
+  var MARK = { a: 4.2, p: 1.4, b: -0.2, cut: -0.72, ramp: 0.35 };
 
   function renderMark(ctx, S, color, rows) {
     ctx.clearRect(0, 0, S, S);
     ctx.fillStyle = color;
 
-    rows = rows || 80;
-    var cx = S / 2, cy = S / 2, R = S * 0.46;
-    var dy = S / rows, dx = dy * 0.655;         // scanline + dash pitch
-    var dashW = dx * 0.82, dashH = Math.max(S / 300, dy * 0.4);
-    var rc = Math.cos(MARK.rot), rs = Math.sin(MARK.rot);
+    rows = rows || 36;
+    var cx = S / 2, cy = S / 2, R = S * 0.47;
+    var dy = S / rows, dx = dy * 0.5;           // scanline + dash pitch
+    var dashW = dx * 0.94, dashH = dy * 0.52;
+    var hi = MARK.cut + MARK.ramp;
 
     var ji = 0;
     for (var y = dy / 2; y < S; y += dy, ji++) {
       var ii = 0;
       for (var x = dx / 2; x < S; x += dx, ii++) {
         var px = (x - cx) / R, py = (y - cy) / R;
-        var tx = px * rc - py * rs;
-        py = px * rs + py * rc;
-        px = tx;
-
         var r = Math.hypot(px, py);
         if (r > 1) continue;
 
-        var phi = MARK.swirl * (1 - r);
-        var c = Math.cos(phi), s = Math.sin(phi);
-        var ry = px * s + py * c;
+        var u = 2 * Math.atan2(py, px) + MARK.a * Math.pow(r, MARK.p) + MARK.b;
+        var val = Math.cos(u);
 
-        var v = Math.sin(ry * MARK.freq * Math.PI + MARK.phase) * 0.5 + 0.5;
+        var v;
+        if (val > hi) v = 1;
+        else if (val > MARK.cut) v = (val - MARK.cut) / MARK.ramp;
+        else v = 0;
+
+        // slight limb fade so the disc reads spherical
         var z = Math.sqrt(Math.max(0, 1 - r * r));
-        v *= 0.25 + 0.75 * Math.pow(z, MARK.limb);
-        if (r > 0.93) v = Math.max(v, 0.55 * z + 0.2);
+        v *= 0.55 + 0.45 * Math.sqrt(z);
 
         var t = (BAYER[ji % 4][ii % 4] + 0.5) / 16;
         if (v > t) ctx.fillRect(x - dashW / 2, y - dashH / 2, dashW, dashH);
@@ -275,7 +276,7 @@
   var logoCanvas = document.getElementById("logo-mark");
   function drawLogo() {
     refreshPalette();
-    renderMark(logoCanvas.getContext("2d"), logoCanvas.width, palette.fg, 54);
+    renderMark(logoCanvas.getContext("2d"), logoCanvas.width, palette.fg, 36);
   }
 
   /* ================= Landmask ================= */
