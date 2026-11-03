@@ -67,10 +67,13 @@
     color: #000;
     text-transform: none;
     white-space: nowrap;
-    transition: background-color 0.2s ease;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
   }
   .nav-cta:hover { background: #eaeaea; color: #000; }
   .nav-cta:focus-visible { outline: 2px solid var(--fg); outline-offset: 4px; }
+  /* light mode: same ink as the wordmark */
+  :root[data-theme="light"] .nav-cta { background: var(--fg); border-color: var(--fg); color: #fff; }
+  :root[data-theme="light"] .nav-cta:hover { background: #333; border-color: #333; }
   @media (max-width: 480px) {
     header { padding: 1rem 0.75rem; }
     .brand { gap: 0.5rem; }
